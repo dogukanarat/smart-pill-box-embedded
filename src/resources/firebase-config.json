@@ -1,0 +1,6 @@
+{
+    "apiKey": "AIzaSyBCzObI1ul0sB61TIi_XA83vpmsi30DGJQ",
+    "authDomain": "pill-classification.firebaseapp.com",
+    "databaseURL": "https://pill-classification.firebaseio.com",
+    "storageBucket": "pill-classification.appspot.com"
+}

@@ -1,0 +1,28 @@
+{
+    "Classes": [{
+        "ObjectClassName": "sampleclass",
+        "ObjectFileName": "samplefilename",
+        "ObjectAmount": 0
+    }],
+    "Users": [{
+        "Username": "sampleusername",
+        "UserUniqueID": 0,
+        "IsAdmin": false,
+        "PillPeriod": [{
+            "classSample": 12,
+            "lastTake": "00.00.0000 12:00"
+        }]
+    }],
+    "StatusParameters": {
+        "IsErrorOccured": false,
+        "Errors": [{
+            "ErrorID": 0,
+            "ErrorMessage": "sampleerrormessage"
+        }],
+        "NumberOfUser": 0,
+        "NumberOfClass": 1,
+        "PowerMode": "samplepowermode",
+        "BatteryStatus": "samplebaterystatus"
+    }
+
+}

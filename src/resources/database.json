@@ -1,0 +1,24 @@
+{
+    "Classes":[
+        {
+            "ObjectAmount":1,
+            "ObjectClassName":"NewClass",
+            "ObjectFileName":"NewClass"
+        },
+        {
+            "ObjectAmount":1,
+            "ObjectClassName":"NewClass",
+            "ObjectFileName":"NewClass"
+        }
+    ],
+    "StatusParameters":{
+        "BatteryStatus":"None",
+        "ClassAmount":0,
+        "Errors":[],
+        "IsErrorOccured":false,
+        "PowerMode":"None",
+        "UserAmount":0
+    },
+    "UpdateTime":"Sat Nov 23 01:11:56 2019",
+    "Users":[]
+}
