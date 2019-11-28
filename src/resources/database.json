@@ -1,24 +1,23 @@
 {
-    "Classes":[
-        {
-            "ObjectAmount":1,
-            "ObjectClassName":"NewClass",
-            "ObjectFileName":"NewClass"
+    "Classes": [{
+            "Amount": 1,
+            "ClassName": "NewClass0",
+            "UniqueClassName": "cefeec7f-1138-440f-a6d4-59c2461fc1c4"
         },
         {
-            "ObjectAmount":1,
-            "ObjectClassName":"NewClass",
-            "ObjectFileName":"NewClass"
+            "Amount": 1,
+            "ClassName": "NewClass1",
+            "UniqueClassName": "2ea4f309-d0c2-484c-9fd5-c4fe039f9c14"
         }
     ],
-    "StatusParameters":{
-        "BatteryStatus":"None",
-        "ClassAmount":0,
-        "Errors":[],
-        "IsErrorOccured":false,
-        "PowerMode":"None",
-        "UserAmount":0
+    "StatusParameters": {
+        "BatteryStatus": "None",
+        "ClassAmount": 2,
+        "Errors": [],
+        "IsErrorOccured": false,
+        "PowerMode": "None",
+        "UserAmount": 0
     },
-    "UpdateTime":"Sat Nov 23 01:11:56 2019",
-    "Users":[]
+    "UpdateTime": "Tue Nov 26 14:35:37 2019",
+    "Users": []
 }

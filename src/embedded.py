@@ -19,17 +19,22 @@ import pyrebase
 import itertools
 import asyncio
 import csv
+import weakref
+
+from PillClassifierBackend import PillClassifierBackend
 
 
 class User():
     userAmount = 0
+    instances = []
 
-    def __init__(self, username, useruniqueid, isadmin, pillperiods):
+    def __init__(self, username, useruniqueid, isadmin, pillperiods=[]):
         self.username = username
         self.useruniqueid = useruniqueid
         self.isadmin = isadmin
         self.pillperiods = pillperiods
         User.userAmount += 1
+        self.__class__.instances.append(weakref.proxy(self))
 
     def GetDictionary(self):
         return {
@@ -42,48 +47,142 @@ class User():
 
 class PillClass():
     pillClassAmount = 0
+    instances = []
 
-    def __init__(self, classname, objectfilename, objectamount):
+    def __init__(self, classname, samplepath, amount, uniqueclassname=None):
         self.classname = classname
-        self.filename = classname
-        self.objectfilename = objectfilename
-        self.objectamount = objectamount
+        self.samplepath = samplepath
+        self.amount = amount
         self.objectimage = None
+        self.RGBHistogram = None
+        self.GetRGBHistogramExecuted = False
+        self.uniqueclassname = uniqueclassname
+
+        if self.uniqueclassname == None:
+            self.uniqueclassname = str(uuid.uuid4())
+
         PillClass.pillClassAmount += 1
+        self.__class__.instances.append(weakref.proxy(self))
 
     def GetDictionary(self):
         return {
-            "ObjectClassName": self.classname,
-            "ObjectFileName": self.filename,
-            "ObjectAmount": self.objectamount
+            "ClassName": self.classname,
+            "Amount": self.amount,
+            "UniqueClassName": self.uniqueclassname
         }
 
+    def GetRGBHistogram(self):
+        if not self.GetRGBHistogramExecuted:
+            histogram = PillClassifierBackend.GetRGBHistogram(
+                self.GetSampleImage()
+            )
+            self.RGBHistogram = histogram
+            self.GetRGBHistogramExecuted = True
+            return self.RGBHistogram
+        else:
+            return self.RGBHistogram
 
-class Period():
+    def GetSampleImage(self):
+        try:
+            if self.objectimage == None:
 
-    def __init__(self):
-        pass
+                sampleimage = cv2.imread(
+                    "{}/{}.png".format(self.samplepath, self.uniqueclassname)
+                )
+                self.objectimage = sampleimage
+
+            else:
+                None
+
+            return self.objectimage
+
+        except Exception as e:
+            print(e)
+            return False
+
+    def StoreSampleImage(self, sampleimage):
+        try:
+            cv2.imwrite(
+                "{}/{}.png".format(self.samplepath, self.uniqueclassname),
+                sampleimage
+            )
+            print("New Sample Stored: {}/{}.png".format(self.samplepath,
+                                                        self.uniqueclassname))
+
+        except Exception as e:
+            print(e)
+            return False
+
+
+class PillPeriod():
+    periods = []
+    instances = []
+
+    def __init__(self, useruniqueid, classname, lasttake):
+        self.relateduser = relateduser
+        self.classname
+        self.lasttake = lasttake
+        self.__class__.instances.append(weakref.proxy(self))
 
     def GetDictionary(self):
         return {
-            "classSample": 0,
-            "lastTake": "0"
+            "ClassName": self.classname,
+            "LastTake": self.lasttake
         }
 
 
 class Database():
 
-    def __init__(self, localdatabasefile, onlinedatabaseconfigfile):
+    def __init__(self, localdatabasefile, onlinedatabaseconfigfile, objectspath):
         self.localdatabasefile = localdatabasefile
         self.onlinedatabaseconfigfile = onlinedatabaseconfigfile
+        self.objectspath = objectspath
         self.content = None
         self.firebase = None
+        self.users = []
+        self.pillclasses = []
 
     def Initialize(self):
         try:
             self.GetDatabaseContent()
+
+            self.statusparameters = self.content['StatusParameters']
+
+            if bool(self.content['Classes']):
+                for pillclass in self.content['Classes']:
+                    pillclassobject = PillClass(
+                        pillclass["ClassName"],
+                        self.objectspath,
+                        pillclass["Amount"],
+                        uniqueclassname=pillclass["UniqueClassName"])
+                    self.pillclasses.append(pillclassobject)
+
+            if bool(self.content['Users']):
+                for user in self.content['Users']:
+
+                    pillperiods = []
+
+                    if bool(user['PillPeriods']):
+                        for pillperiod in user['PillPeriods']:
+                            pillperiodobject = PillPeriod(
+                                user["UserUniqueID"],
+                                pillperiod["ClassName"],
+                                pillperiod["LastTake"]
+                            )
+                            pillperiods.append(pillperiodobject)
+
+                    userobject = User(
+                        user["Username"],
+                        user["UserUniqueID"],
+                        user["IsAdmin"],
+                        pillperiods
+                    )
+
+                    self.users.append(userobject)
+
             return True
-        except:
+        except Exception as e:
+            print(e)
             return False
 
     def GetDatabaseContent(self):
@@ -92,9 +191,6 @@ class Database():
 
         if localdatabasecontent["UpdateTime"] == onlinedatabasecontent["UpdateTime"]:
             self.content = localdatabasecontent
-            self.statusparameters = self.content['StatusParameters']
-            self.users = self.content['Users']
-            self.classes = self.content['Classes']
             return True
         else:
             return False
@@ -153,7 +249,9 @@ class Database():
         pass
 
     def CreateNewClass(self, pillclassobject):
+        self.pillclasses.append(pillclassobject)
         self.content["Classes"].append(pillclassobject.GetDictionary())
+        self.content["StatusParameters"]
         self.SetDatabaseContent()
         pass
 
@@ -173,120 +271,10 @@ class Database():
         pass
 
 
-class PillClassifierBackend():
-
-    version = 1.0
-    resizefactor = 0.2
-    treshold = 1500
-
-    def __init__(self):
-        print("Pill Classifier Backend, Version: {}".format(
-            PillClassifierBackend.version))
-
-    @staticmethod
-    def IsAllSame(objectlist):
-        amount, _, _, _ = objectlist.shape
-        result = True
-
-        for pair in itertools.product([i for i in range(amount)], repeat=2):
-            pairiter = iter(pair)
-            index1 = next(pairiter)
-            index2 = next(pairiter)
-            histogram1 = __class__.GetRGBHistogram(objectlist[index1])
-            histogram2 = __class__.GetRGBHistogram(objectlist[index2])
-            currentdistance = __class__.CompareHistograms(
-                histogram1, histogram2)
-
-            if (currentdistance < __class__.treshold):
-                result = False
-
-        return result
-
-    @staticmethod
-    def ResizeImage(image):
-        return cv2.resize(image, None, fx=PillClassifierBackend.resizefactor, fy=PillClassifierBackend.resizefactor, interpolation=cv2.INTER_AREA)
-
-    @staticmethod
-    def MaskObject(image, mask):
-        M = cv2.moments(mask)
-        cX = int(M["m10"] / M["m00"])
-        cY = int(M["m01"] / M["m00"])
-
-        _, binarymask = cv2.threshold(mask, 220, 255, cv2.THRESH_BINARY_INV)
-        binarymask = 255 - binarymask
-        binarymask = np.expand_dims(binarymask, axis=-1)
-        maskedimage = cv2.bitwise_and(image, image, mask=np.uint8(binarymask))
-
-        return maskedimage[cY-100:cY+100, cX-100:cX+100]
-
-    @staticmethod
-    def ExtractObjects(image):
-        resizedimage = PillClassifierBackend.ResizeImage(image)
-        # Step: 1
-        grayscaled = cv2.cvtColor(resizedimage, cv2.COLOR_BGR2GRAY)
-        gaussian = cv2.GaussianBlur(grayscaled, (7, 7), 0)
-        unsharped = cv2.addWeighted(grayscaled, 2, gaussian, -1, 0)
-        edged = cv2.Canny(unsharped, 70, 800)
-
-        # Step: 2
-        edged = 255 - edged
-        _, threshed = cv2.threshold(
-            edged, 250, 255, cv2.THRESH_BINARY_INV)
-        floodfill = threshed.copy()
-        h, w = threshed.shape[:2]
-        mask = np.zeros((h+2, w+2), np.uint8)
-        cv2.floodFill(floodfill, mask, (0, 0), 255)
-        inverted = cv2.bitwise_not(floodfill)
-        mask = threshed | inverted
-
-        # Step: 3
-        _, markers = cv2.connectedComponents(mask)
-        objectamount = np.max(markers)
-        tempmask = np.array([])
-        (width, height) = markers.shape
-
-        for marker in range(1, objectamount + 1):
-
-            def CheckPixel(pixel):
-                if (pixel == marker).any():
-                    return 255
-                else:
-                    return 0
-
-            templist = np.array(
-                list(map(CheckPixel, markers.flatten())))
-
-            templist = np.uint8(templist)
-            tempmask = np.append(tempmask, templist)
-
-        tempmask = tempmask.reshape(objectamount, width, height)
-
-        objects = np.array([PillClassifierBackend.MaskObject(
-            resizedimage, mask) for mask in tempmask])
-
-        return (objects, objectamount)
-
-    @staticmethod
-    def GetRGBHistogram(image):
-
-        rgbhistogram = []
-
-        color = ('b', 'g', 'r')
-        for channel, col in enumerate(color):
-            histogram = cv2.calcHist([image], [channel], None, [256], [0, 256])
-            rgbhistogram.append(histogram)
-
-        return np.array(rgbhistogram)
-
-    @staticmethod
-    def CompareHistograms(firsthistogram, secondhistogram):
-        return cdist(firsthistogram.reshape(-1, 1).transpose(),
-                     secondhistogram.reshape(-1, 1).transpose(), 'cityblock')[0][0]
-
-
 class PillClassifier():
 
     def __init__(self):
+        self.treshold = 15000.0
         self.backend = PillClassifierBackend()
         self.objectspath = None
         self.localdatabasefile = None
@@ -294,24 +282,25 @@ class PillClassifier():
         self.newshot = None
         self.database = None
         self.users = []
-        self.classes = []
         self.pillclasses = []
         self.tempobjectlist = []
         self.temphistogramlist = []
-        self.treshold = 15000.0
 
     def ConnectDatabase(self):
         try:
             self.database = Database(
                 self.localdatabasefile,
-                self.onlinedatabaseconfigfile
+                self.onlinedatabaseconfigfile,
+                self.objectspath
             )
 
             response = self.database.Initialize()
             if response:
+                self.pillclasses = self.database.pillclasses
+                self.users = self.database.users
                 print("Classifier: Database connection is successful!")
             else:
-                print("Classifier: Error occurred while connection database!!")
+                print("Classifier: Error occurred while connection database!")
         except:
             print("Classifier: Error occurred while connection database!")
             print(sys.exc_info()[0])
@@ -331,21 +320,46 @@ class PillClassifier():
 
             print("Classifier: Captured object shape: {}".format(
                 self.tempobjectlist.shape))
+
             return True
 
-        except Exception as e:
+        except:
             print("Classifier: Error occured while taking new image!")
-            print(e)
+            print(sys.exc_info()[0])
             return False
 
     def PostProcessing(self):
-        self.temphistogramlist = np.array(
-            [self.backend.GetRGBHistogram(object) for object in self.tempobjectlist])
+        self.temphistogramlist = np.array([
+            self.backend.GetRGBHistogram(object) for object in self.tempobjectlist
+        ])
 
-        newclass = PillClass("NewClass", "NewClass", 1)
-        self.database.CreateNewClass(newclass)
+        localhistogramlist = np.array([
+            pillclassobject.GetRGBHistogram() for pillclassobject in self.pillclasses
+        ])
 
-        print(self.database.content)
+        distances = []
+
+        for temphistogramlist in self.temphistogramlist:
+            for localhistogram in localhistogramlist:
+                distances.append(self.backend.CompareHistograms(
+                    temphistogramlist,
+                    localhistogram
+                ))
+
+        if(min(distances) < self.treshold):
+            print("Classifier: Given pill class is found in the database!")
+
+        '''
+        for index, tempobject in enumerate(self.tempobjectlist):
+
+            newpillclass = PillClass("NewClass{}".format(
+                index), self.objectspath, 1)
+
+            newpillclass.StoreSampleImage(tempobject)
+            self.classes.append(newclass)
+            self.database.CreateNewClass(newclass)
+        '''
+
         return None
 
     def Test(self):
@@ -359,17 +373,17 @@ def main():
     resourcespath = '{}/resources'.format(basepath)
     localdatabasefile = '{}/database.json'.format(resourcespath)
     onlinedatabaseconfigfile = '{}/firebase-config.json'.format(resourcespath)
-    objectspath = '{}/objects'.format(basepath)
+    objectspath = '{}/objects'.format(resourcespath)
     newshot = '{}/takenimage.jpg'.format(resourcespath)
 
-    # Object Definitions
+    # Instance Definitions
     pc = PillClassifier()
     pc.localdatabasefile = localdatabasefile
     pc.onlinedatabaseconfigfile = onlinedatabaseconfigfile
     pc.objectspath = objectspath
     pc.newshot = newshot
 
-    # Object Operation
+    # Instance Operation
     pc.ConnectDatabase()
     pc.TakeaShot()
     pc.PostProcessing()
