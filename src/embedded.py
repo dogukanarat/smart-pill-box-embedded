@@ -329,6 +329,9 @@ class PillClassifier():
             return False
 
     def PostProcessing(self):
+
+        # Feature Space = [[Histogram], [Shape], [Size]]
+
         self.temphistogramlist = np.array([
             self.backend.GetRGBHistogram(object) for object in self.tempobjectlist
         ])

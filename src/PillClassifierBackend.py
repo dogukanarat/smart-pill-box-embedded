@@ -121,6 +121,53 @@ class PillClassifierBackend():
         return (objects, objectamount)
 
     @staticmethod
+    def GetShapeInformation(image):
+
+        width, height, _ = image.shape
+
+        offsetX = int(width / 2)
+        offsetY = int(height / 2)
+
+        rotated = ndimage.rotate(image, 45)
+
+        width, height, _ = rotated.shape
+
+        centerX = int(width / 2)
+        centerY = int(height / 2)
+
+        rotated = rotated[centerX-offsetX:centerX +
+                          offsetX, centerY-offsetY:centerY+offsetY]
+
+        sumOfImages = image + rotated
+        areaOfOriginalImage = PillClassifierBackend.GetSizeInformation(image)
+        areaOfSumOfImages = PillClassifierBackend.GetSizeInformation(
+            sumOfImages)
+
+        result = ((areaOfSumOfImages - areaOfOriginalImage) /
+                  areaOfOriginalImage)*100
+
+        return result
+
+    @staticmethod
+    def GetSizeInformation(image):
+
+        grayscaleImage = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, binaryImage = cv2.threshold(
+            grayscaleImage, 1, 255, cv2.THRESH_BINARY)
+        width, height = binaryImage.shape
+
+        pixelcount = width * height
+
+        flattenImage = binaryImage.flatten()
+
+        nonzeroPixelCount = 0
+        for pixel in flattenImage:
+            if pixel >= 1:
+                nonzeroPixelCount += 1
+
+        return nonzeroPixelCount
+
+    @staticmethod
     def GetRGBHistogram(image):
 
         rgbhistogram = []
