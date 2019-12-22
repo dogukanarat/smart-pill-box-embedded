@@ -63,7 +63,6 @@ if __name__ == "__main__":
     print("Patch Color Information----------------------------------")
     print("Histograms were printed")
 
-    '''
     ID = int(input("Enter Patch ID(0 to 4): "))
 
     color = ('b', 'g', 'r')
@@ -72,7 +71,6 @@ if __name__ == "__main__":
         plt.plot(histogramPlot, color=col)
         plt.xlim([0, 256])
     plt.show()
-    '''
 
     # Patch Shape Information
 
@@ -124,8 +122,10 @@ if __name__ == "__main__":
             "Area Difference": currentdistanceArea
         })
 
+    '''
     pp = pprint.PrettyPrinter(indent=4)
     pp.pprint(differenceArray)
+    '''
 
     '''
     cv2.imshow('image', patchSix)
