@@ -1,3 +1,4 @@
 {
-  "Interpreter": "CondaEnv|CondaEnv|Anaconda3"
+  "Interpreter": "CondaEnv|CondaEnv|Anaconda3",
+  "SuppressConfigureTestFrameworkPrompt": "true"
 }

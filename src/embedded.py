@@ -312,7 +312,7 @@ class PillClassifier():
     def TakeaShot(self):
         try:
 
-            # Raspberry Pi Take a Short Function Here!
+            # Raspberry Pi Take a Shot Function Here!
 
             newimage = cv2.imread(self.newshot)
             objects, objectamount = self.backend.ExtractObjects(newimage)
@@ -377,7 +377,7 @@ def main():
     localdatabasefile = '{}/database.json'.format(resourcespath)
     onlinedatabaseconfigfile = '{}/firebase-config.json'.format(resourcespath)
     objectspath = '{}/objects'.format(resourcespath)
-    newshot = '{}/takenimage.jpg'.format(resourcespath)
+    newshot = '{}/real_image.jpg'.format(resourcespath)
 
     # Instance Definitions
     pc = PillClassifier()

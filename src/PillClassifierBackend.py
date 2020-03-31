@@ -23,45 +23,72 @@ import csv
 
 class PillClassifierBackend():
 
-    version = 1.0
-    resizefactor = 0.2
-    treshold = 1500
+    VERSION = 1.0
+    RESIZE_FACTOR = 1
+    THRESHOLD = 500
 
     def __init__(self):
         print("Pill Classifier Backend, Version: {}".format(
-            PillClassifierBackend.version))
+            __class__.VERSION))
+
+    @staticmethod
+    def show_image(image_object):
+
+        cv2.imshow('image', image_object)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        return None
 
     @staticmethod
     def IsAllSame(objectlist):
-        amount, _, _, _ = objectlist.shape
         result = True
+        histograms = np.array(
+            [__class__.GetRGBColor(item) for item in objectlist])
 
-        for pair in itertools.product([i for i in range(amount)], repeat=2):
-            pairiter = iter(pair)
-            index1 = next(pairiter)
-            index2 = next(pairiter)
-            histogram1 = __class__.GetRGBHistogram(objectlist[index1])
-            histogram2 = __class__.GetRGBHistogram(objectlist[index2])
-            currentdistance = __class__.CompareHistograms(
-                histogram1, histogram2)
+        sizes = np.array(
+            [__class__.GetSizeInformation(item) for item in objectlist])
 
-            if (currentdistance < __class__.treshold):
-                result = False
+        shapes = np.array(
+            [__class__.GetShapeInformation(item) for item in objectlist])
 
-        return result
+        def feature_mapping(item):
+            return [int(item[0][0]), int(item[0][1]), int(item[0][2]), int(item[1]), int(item[2])]
+
+        feature_space = np.array([feature_mapping(item)
+                                  for item in zip(histograms, sizes, shapes)])
+
+        for pair in itertools.combinations(feature_space, r=2):
+
+            distance = cdist(pair[0].reshape(-1, 1).transpose(),
+                             pair[1].reshape(-1, 1).transpose(), 'euclidean')[0][0]
+
+            if (distance > __class__.THRESHOLD):
+                return None
+
+        if result:
+            return feature_space
 
     @staticmethod
     def ResizeImage(image):
         return cv2.resize(
             image,
             None,
-            fx=PillClassifierBackend.resizefactor,
-            fy=PillClassifierBackend.resizefactor,
+            fx=__class__.RESIZE_FACTOR,
+            fy=__class__.RESIZE_FACTOR,
             interpolation=cv2.INTER_AREA
         )
 
     @staticmethod
     def MaskObject(image, mask):
+
+        PATCH_SIZE = 100
+
+        mask = cv2.copyMakeBorder(
+            mask, PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
+        image = cv2.copyMakeBorder(
+            image, PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
         M = cv2.moments(mask)
         cX = int(M["m10"] / M["m00"])
         cY = int(M["m01"] / M["m00"])
@@ -71,18 +98,24 @@ class PillClassifierBackend():
         binarymask = np.expand_dims(binarymask, axis=-1)
         maskedimage = cv2.bitwise_and(image, image, mask=np.uint8(binarymask))
 
-        return maskedimage[cY-100:cY+100, cX-100:cX+100]
+        return maskedimage[cY-PATCH_SIZE:cY+PATCH_SIZE, cX-PATCH_SIZE:cX+PATCH_SIZE]
 
     @staticmethod
     def ExtractObjects(image):
         resizedimage = PillClassifierBackend.ResizeImage(image)
-        # Step: 1
+
+        # Step: 1 - Find edges
         grayscaled = cv2.cvtColor(resizedimage, cv2.COLOR_BGR2GRAY)
         gaussian = cv2.GaussianBlur(grayscaled, (7, 7), 0)
         unsharped = cv2.addWeighted(grayscaled, 2, gaussian, -1, 0)
-        edged = cv2.Canny(unsharped, 70, 800)
+        edged = cv2.Canny(unsharped, 70, 450)
 
-        # Step: 2
+        # Step: 2 - Connect broken edges
+        kernel = np.ones((2, 2), np.uint8)
+        edged = cv2.dilate(edged, kernel, iterations=1)
+        edged = cv2.erode(edged, kernel, iterations=1)
+
+        # Step: 2 - Fill closed loops
         edged = 255 - edged
         _, threshed = cv2.threshold(
             edged, 250, 255, cv2.THRESH_BINARY_INV)
@@ -136,7 +169,7 @@ class PillClassifierBackend():
         centerY = int(height / 2)
 
         rotated = rotated[centerX-offsetX:centerX +
-                          offsetX, centerY-offsetY:centerY+offsetY]
+                          offsetX, centerY-offsetY: centerY+offsetY]
 
         sumOfImages = image + rotated
         areaOfOriginalImage = PillClassifierBackend.GetSizeInformation(image)
@@ -183,3 +216,18 @@ class PillClassifierBackend():
     def CompareHistograms(firsthistogram, secondhistogram):
         return cdist(firsthistogram.reshape(-1, 1).transpose(),
                      secondhistogram.reshape(-1, 1).transpose(), 'cityblock')[0][0]
+
+    @staticmethod
+    def GetRGBColor(image):
+        grayscaled = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, threshed = cv2.threshold(grayscaled, 10, 255, cv2.THRESH_BINARY_INV)
+
+        width, height = threshed.shape
+
+        coefficient = int(((np.count_nonzero(threshed))/(width * height))*100)
+
+        B, G, R, _ = cv2.mean(image)
+
+        mean_color = np.array([R, G, B]) * 92
+
+        return mean_color
