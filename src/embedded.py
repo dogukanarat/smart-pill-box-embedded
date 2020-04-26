@@ -54,10 +54,11 @@ class User():
         self.user_unique_id = variables.user_unique_id
         self.is_admin = variables.is_admin
 
-        for period in variables.pill_periods:
-            new_period = PillPeriod()
-            new_period.set_dictionary(period)
-            self.pill_periods.append(new_period)
+        if "pill_periods" in dictionary:
+            for period in variables.pill_periods:
+                new_period = PillPeriod()
+                new_period.set_dictionary(period)
+                self.pill_periods.append(new_period)
 
     def set_pill_period(self, pill_period):
         self.pill_periods.append(pill_period)
@@ -82,7 +83,7 @@ class PillClass():
             "class_name": self.class_name,
             "sample_path": self.sample_path,
             "sample_amount": self.sample_amount,
-            "feature_vector": self.feature_vector,
+            "feature_vector": self.feature_vector.tolist(),
             "unique_class_name": self.unique_class_name
         }
 
@@ -92,7 +93,7 @@ class PillClass():
         self.sample_path = variables.sample_path
         self.sample_amount = variables.sample_amount
         self.feature_vector = variables.feature_vector
-        self.unique_class_name = unique_class_name
+        self.unique_class_name = variables.unique_class_name
 
     def set_new_samples(self, sample_amount):
         self.sample_amount += sample_amount
@@ -138,6 +139,155 @@ class PillPeriod():
         return None
 
 
+class Database():
+
+    def __init__(self, local_database_file, online_database_config_file, objects_path):
+        self.local_database_file = local_database_file
+        self.online_database_config_file = online_database_config_file
+        self.objects_path = objects_path
+
+        self.content = None
+        self.firebase_db = None
+        self.firebase_auth = None
+
+        self.status_parameters = []
+        self.users = []
+        self.pill_classes = []
+        self.pill_periods = []
+
+        self.initialize()
+
+    def initialize(self):
+        try:
+            self.get_database_content()
+
+            self.status_parameters = self.content['StatusParameters']
+
+            if 'Classes' in self.content:
+                for pill_class in self.content['Classes']:
+                    pill_class_object = PillClass()
+                    pill_class_object.set_dictionary(
+                        self.content["Classes"][pill_class])
+                    self.pill_classes.append(pill_class_object)
+
+            if 'Users' in self.content:
+                for user in self.content['Users']:
+                    user_object = User()
+                    user_object.set_dictionary(self.content["Users"][user])
+                    self.users.append(user_object)
+
+            return True
+
+        except Exception as e:
+            print(e)
+            return False
+
+    def get_database_content(self):
+        try:
+            local_database_content = self.get_local_database()
+            online_database_content = dict(self.get_online_database())
+
+            '''
+            if local_database_content["UpdateTime"] == online_database_content["UpdateTime"]:
+                self.content = localdatabasecontent
+                return True
+            else:
+                return False
+            '''
+
+            self.content = online_database_content
+
+            return True
+
+        except Exception as e:
+            print(e)
+            return False
+
+    def get_local_database(self):
+        try:
+            with open(self.local_database_file, 'r') as file:
+                return json.loads(file.read())
+
+        except Exception as e:
+            print(e)
+            return False
+
+    def get_online_database(self):
+        try:
+            with open(self.online_database_config_file, 'r') as file:
+                file_content = json.loads(file.read())
+                firebase_kernel = pyrebase.initialize_app(file_content)
+                self.firebase_db = firebase_kernel.database()
+                self.firebase_auth = firebase_kernel.auth()
+
+            return self.firebase_db.get().val()
+
+        except Exception as e:
+            print(e)
+            return False
+
+    def set_new_pill_class(self, pill_class_object):
+
+        self.pill_classes.append(pill_class_object)
+
+        results = self.firebase_db.child("Classes").push(
+            pill_class_object.get_dictionary())
+
+        return True
+
+    def GenerateUpdateTime(self):
+        now = datetime.now()
+        currenttime = now.strftime("%c")
+
+        return currenttime
+
+    def SetDatabaseContent(self):
+        try:
+            self.content["UpdateTime"] = self.GenerateUpdateTime()
+            self.SetLocalDatabase()
+            self.SetOnlineDatabase()
+            print("Database: Database is saved!")
+            return True
+        except:
+            print("Database: Error occured while saving database!")
+            return False
+
+    def SetOnlineDatabase(self):
+        try:
+            self.firebase.set(self.content)
+            return True
+        except:
+            print("Database: Error occured while updating online database!")
+
+    def SetLocalDatabase(self):
+        try:
+            json.dump(self.content, codecs.open(self.localdatabasefile, 'w', encoding='utf-8'),
+                      separators=(',', ':'), sort_keys=True, indent=4)
+            return True
+        except:
+            print("Database: Error occured while updating local database!")
+
+    def GetClasses(self):
+        pass
+
+    def GetUsers(self):
+        pass
+
+    def SetUsers(self):
+        pass
+
+    def GetStatusParameters(self):
+        pass
+
+    def SetStatusParameters(self):
+        pass
+
+    def debug(self, message):
+        print("-----------------------DEBUG-----------------------")
+        print(message)
+        print("-----------------------DEBUG-----------------------")
+
+
 class PillClassifier():
 
     def __init__(self):
@@ -153,6 +303,20 @@ class PillClassifier():
         self.temp_object_list = []
         self.total_sample_amount = 0
         self.total_pill_class_amount = 0
+
+    def initialize(self):
+        try:
+            self.database = Database(
+                self.local_database_file, self.online_database_config_file, self.objects_path)
+
+            self.users = self.database.users
+            self.pill_classes = self.database.pill_classes
+
+            return True
+
+        except Exception as e:
+            print(e)
+            return False
 
     def take_shot(self):
         try:
@@ -175,7 +339,7 @@ class PillClassifier():
     def post_processing(self):
         ''' Temprorary '''
         self.temp_object_list = [
-            self.temp_object_list[0], self.temp_object_list[1]]
+            self.temp_object_list[3], self.temp_object_list[6]]
         ''' Temprorary '''
 
         feature_vector = self.backend.is_all_same(self.temp_object_list)
@@ -228,6 +392,8 @@ class PillClassifier():
         self.total_pill_class_amount += 1
         self.total_sample_amount += new_pill_class_sample_amount
         self.pill_classes.append(new_pill_class)
+
+        self.database.set_new_pill_class(new_pill_class)
 
         print("Classifier: New class added")
 
@@ -295,10 +461,13 @@ def embedded():
     pc.samples_path = f'{resources_path}/samples'
     pc.new_shot_file = f'{resources_path}/real_image.jpg'
 
-    '''
+    pc.initialize()
+
+    print(f'Number of class: {len(pc.pill_classes)}')
+    print(f'Number of user: {len(pc.users)}')
+
     pc.take_shot()
     pc.post_processing()
-    '''
 
 
 if __name__ == "__main__":
