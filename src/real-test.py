@@ -47,7 +47,7 @@ if __name__ == "__main__":
     resourcespath = '{}/resources'.format(basepath)
     real_image = cv2.imread("{}/real_image.jpg".format(resourcespath))
 
-    objects, object_amount = backend.ExtractObjects(real_image)
+    objects, object_amount = backend.extract_objects(real_image)
 
     print("{} objects found".format(object_amount))
 
@@ -55,22 +55,38 @@ if __name__ == "__main__":
 
     print("--- %s seconds ---" % (time.time() - start_time))
 
-    new_object_list_1 = np.array(
-        [objects[0], objects[1], objects[2], objects[7], objects[9], objects[12]])
+    new_object_list_1 = np.array([
+        objects[0],
+        objects[1],
+        objects[2],
+        objects[7],
+        objects[9],
+        objects[12]])
 
-    new_object_list_2 = np.array(
-        [objects[3], objects[6]])
+    new_object_list_2 = np.array([
+        objects[3],
+        objects[6]])
 
-    new_object_list_3 = np.array(
-        [objects[4], objects[5], objects[8], objects[10], objects[11], objects[13]])
+    new_object_list_3 = np.array([
+        objects[4],
+        objects[5],
+        objects[8],
+        objects[10],
+        objects[11],
+        objects[13]])
 
-    new_object_list_4 = np.array([objects[0], objects[3], objects[4]])
+    new_object_list_4 = np.array([
+        objects[0],
+        objects[3],
+        objects[6]])
 
     '''
     for item in new_object_list_2:
         show_image(item)
     '''
-    feature_space = backend.IsAllSame(new_object_list_4)
+
+    print("Object List No: 1")
+    feature_space = backend.is_all_same(new_object_list_1)
 
     if feature_space is None:
         print("Objects are NOT same!")

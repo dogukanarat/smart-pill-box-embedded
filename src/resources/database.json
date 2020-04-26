@@ -1,15 +1,5 @@
 {
-    "Classes": [{
-            "Amount": 1,
-            "ClassName": "NewClass0",
-            "UniqueClassName": "cefeec7f-1138-440f-a6d4-59c2461fc1c4"
-        },
-        {
-            "Amount": 1,
-            "ClassName": "NewClass1",
-            "UniqueClassName": "2ea4f309-d0c2-484c-9fd5-c4fe039f9c14"
-        }
-    ],
+    "Classes": [],
     "StatusParameters": {
         "BatteryStatus": "None",
         "ClassAmount": 2,

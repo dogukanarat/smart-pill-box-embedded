@@ -26,30 +26,31 @@ class PillClassifierBackend():
     VERSION = 1.0
     RESIZE_FACTOR = 1
     THRESHOLD = 500
+    PATCH_SIZE = 100
 
     def __init__(self):
         print("Pill Classifier Backend, Version: {}".format(
             __class__.VERSION))
 
     @staticmethod
-    def show_image(image_object):
+    def show_image(image):
 
-        cv2.imshow('image', image_object)
+        cv2.imshow('image', image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
         return None
 
     @staticmethod
-    def IsAllSame(objectlist):
+    def is_all_same(object_list):
         result = True
         histograms = np.array(
-            [__class__.GetRGBColor(item) for item in objectlist])
+            [__class__.get_rgb_color(item) for item in object_list])
 
         sizes = np.array(
-            [__class__.GetSizeInformation(item) for item in objectlist])
+            [__class__.get_size_info(item) for item in object_list])
 
         shapes = np.array(
-            [__class__.GetShapeInformation(item) for item in objectlist])
+            [__class__.get_shape_info(item) for item in object_list])
 
         def feature_mapping(item):
             return [int(item[0][0]), int(item[0][1]), int(item[0][2]), int(item[1]), int(item[2])]
@@ -69,7 +70,25 @@ class PillClassifierBackend():
             return feature_space
 
     @staticmethod
-    def ResizeImage(image):
+    def is_all_similar(feature_space):
+
+        max_distance = 0
+
+        for pair in itertools.combinations(feature_space, r=2):
+
+            distance = cdist(pair[0].reshape(-1, 1).transpose(),
+                             pair[1].reshape(-1, 1).transpose(), 'euclidean')[0][0]
+
+            if (distance > __class__.THRESHOLD):
+                return (False, distance)
+
+            if (distance > max_distance):
+                max_distance = distance
+
+        return (True, max_distance)
+
+    @staticmethod
+    def get_resized_image(image):
         return cv2.resize(
             image,
             None,
@@ -79,82 +98,95 @@ class PillClassifierBackend():
         )
 
     @staticmethod
-    def MaskObject(image, mask):
-
-        PATCH_SIZE = 100
+    def mask_object(image, mask):
 
         mask = cv2.copyMakeBorder(
-            mask, PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+            mask,
+            __class__.PATCH_SIZE,
+            __class__.PATCH_SIZE,
+            __class__.PATCH_SIZE,
+            __class__.PATCH_SIZE,
+            cv2.BORDER_CONSTANT,
+            value=[0, 0, 0])
 
         image = cv2.copyMakeBorder(
-            image, PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, PATCH_SIZE, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+            image,
+            __class__.PATCH_SIZE,
+            __class__.PATCH_SIZE,
+            __class__.PATCH_SIZE,
+            __class__.PATCH_SIZE,
+            cv2.BORDER_CONSTANT,
+            value=[0, 0, 0])
 
         M = cv2.moments(mask)
         cX = int(M["m10"] / M["m00"])
         cY = int(M["m01"] / M["m00"])
 
-        _, binarymask = cv2.threshold(mask, 220, 255, cv2.THRESH_BINARY_INV)
-        binarymask = 255 - binarymask
-        binarymask = np.expand_dims(binarymask, axis=-1)
-        maskedimage = cv2.bitwise_and(image, image, mask=np.uint8(binarymask))
+        _, binary_mask = cv2.threshold(mask, 220, 255, cv2.THRESH_BINARY_INV)
+        binary_mask = 255 - binary_mask
+        binary_mask = np.expand_dims(binary_mask, axis=-1)
+        masked_image = cv2.bitwise_and(
+            image, image, mask=np.uint8(binary_mask))
 
-        return maskedimage[cY-PATCH_SIZE:cY+PATCH_SIZE, cX-PATCH_SIZE:cX+PATCH_SIZE]
+        return masked_image[cY-__class__.PATCH_SIZE:cY+__class__.PATCH_SIZE, cX-__class__.PATCH_SIZE:cX+__class__.PATCH_SIZE]
 
     @staticmethod
-    def ExtractObjects(image):
-        resizedimage = PillClassifierBackend.ResizeImage(image)
+    def extract_objects(image):
+        resized_image = __class__.get_resized_image(image)
 
         # Step: 1 - Find edges
-        grayscaled = cv2.cvtColor(resizedimage, cv2.COLOR_BGR2GRAY)
-        gaussian = cv2.GaussianBlur(grayscaled, (7, 7), 0)
-        unsharped = cv2.addWeighted(grayscaled, 2, gaussian, -1, 0)
-        edged = cv2.Canny(unsharped, 70, 450)
+        grayscaled_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2GRAY)
+        gaussian_image = cv2.GaussianBlur(grayscaled_image, (7, 7), 0)
+        unsharped_image = cv2.addWeighted(
+            grayscaled_image, 2, gaussian_image, -1, 0)
+        edged_image = cv2.Canny(unsharped_image, 70, 450)
 
         # Step: 2 - Connect broken edges
         kernel = np.ones((2, 2), np.uint8)
-        edged = cv2.dilate(edged, kernel, iterations=1)
-        edged = cv2.erode(edged, kernel, iterations=1)
+        edged_image = cv2.dilate(edged_image, kernel, iterations=1)
+        edged_image = cv2.erode(edged_image, kernel, iterations=1)
 
         # Step: 2 - Fill closed loops
-        edged = 255 - edged
-        _, threshed = cv2.threshold(
-            edged, 250, 255, cv2.THRESH_BINARY_INV)
-        floodfill = threshed.copy()
-        h, w = threshed.shape[:2]
-        mask = np.zeros((h+2, w+2), np.uint8)
+        edged_image = 255 - edged_image
+        _, thresholded_image = cv2.threshold(
+            edged_image, 250, 255, cv2.THRESH_BINARY_INV)
+        floodfill = thresholded_image.copy()
+        height, width = thresholded_image.shape[:2]
+        mask = np.zeros((height+2, width+2), np.uint8)
         cv2.floodFill(floodfill, mask, (0, 0), 255)
-        inverted = cv2.bitwise_not(floodfill)
-        mask = threshed | inverted
+        inverted_image = cv2.bitwise_not(floodfill)
+        mask = thresholded_image | inverted_image
 
         # Step: 3
         _, markers = cv2.connectedComponents(mask)
-        objectamount = np.max(markers)
-        tempmask = np.array([])
+        object_amount = np.max(markers)
+        temp_mask = np.array([])
         (width, height) = markers.shape
 
-        for marker in range(1, objectamount + 1):
+        for marker in range(1, object_amount + 1):
 
-            def CheckPixel(pixel):
+            def check_pixel(pixel):
                 if (pixel == marker).any():
                     return 255
                 else:
                     return 0
 
-            templist = np.array(
-                list(map(CheckPixel, markers.flatten())))
+            temp_list = np.array(
+                list(map(check_pixel, markers.flatten())))
 
-            templist = np.uint8(templist)
-            tempmask = np.append(tempmask, templist)
+            temp_list = np.uint8(temp_list)
+            temp_mask = np.append(temp_mask, temp_list)
 
-        tempmask = tempmask.reshape(objectamount, width, height)
+        temp_mask = temp_mask.reshape(object_amount, width, height)
 
-        objects = np.array([PillClassifierBackend.MaskObject(
-            resizedimage, mask) for mask in tempmask])
+        objects = np.array([
+            __class__.mask_object(resized_image, mask) for mask in temp_mask
+        ])
 
-        return (objects, objectamount)
+        return (objects, object_amount)
 
     @staticmethod
-    def GetShapeInformation(image):
+    def get_shape_info(image):
 
         width, height, _ = image.shape
 
@@ -171,60 +203,62 @@ class PillClassifierBackend():
         rotated = rotated[centerX-offsetX:centerX +
                           offsetX, centerY-offsetY: centerY+offsetY]
 
-        sumOfImages = image + rotated
-        areaOfOriginalImage = PillClassifierBackend.GetSizeInformation(image)
-        areaOfSumOfImages = PillClassifierBackend.GetSizeInformation(
-            sumOfImages)
+        sum_of_images = image + rotated
+        area_of_original_image = __class__.get_size_info(image)
+        area_of_sum_of_images = __class__.get_size_info(sum_of_images)
 
-        result = ((areaOfSumOfImages - areaOfOriginalImage) /
-                  areaOfOriginalImage)*100
+        result = ((area_of_sum_of_images - area_of_original_image) /
+                  area_of_original_image)*100
 
         return result
 
     @staticmethod
-    def GetSizeInformation(image):
+    def get_size_info(image):
 
-        grayscaleImage = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        _, binaryImage = cv2.threshold(
-            grayscaleImage, 1, 255, cv2.THRESH_BINARY)
-        width, height = binaryImage.shape
+        grayscaled_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, binary_image = cv2.threshold(
+            grayscaled_image, 1, 255, cv2.THRESH_BINARY)
+        width, height = binary_image.shape
 
-        pixelcount = width * height
+        pixel_count = width * height
 
-        flattenImage = binaryImage.flatten()
+        flatten_image = binary_image.flatten()
 
-        nonzeroPixelCount = 0
-        for pixel in flattenImage:
+        nonzero_pixel_count = 0
+        for pixel in flatten_image:
             if pixel >= 1:
-                nonzeroPixelCount += 1
+                nonzero_pixel_count += 1
 
-        return nonzeroPixelCount
+        return nonzero_pixel_count
 
     @staticmethod
-    def GetRGBHistogram(image):
+    def get_rgb_histogram(image):
 
-        rgbhistogram = []
+        rgb_histogram = []
 
         color = ('b', 'g', 'r')
         for channel, col in enumerate(color):
             histogram = cv2.calcHist([image], [channel], None, [256], [0, 256])
-            rgbhistogram.append(histogram)
+            rgb_histogram.append(histogram)
 
-        return np.array(rgbhistogram)
-
-    @staticmethod
-    def CompareHistograms(firsthistogram, secondhistogram):
-        return cdist(firsthistogram.reshape(-1, 1).transpose(),
-                     secondhistogram.reshape(-1, 1).transpose(), 'cityblock')[0][0]
+        return np.array(rgb_histogram)
 
     @staticmethod
-    def GetRGBColor(image):
-        grayscaled = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        _, threshed = cv2.threshold(grayscaled, 10, 255, cv2.THRESH_BINARY_INV)
+    def compare_histograms(first_histogram, second_histogram):
+        return cdist(first_histogram.reshape(-1, 1).transpose(),
+                     second_histogram.reshape(-1, 1).transpose(), 'cityblock')[0][0]
 
-        width, height = threshed.shape
+    @staticmethod
+    def get_rgb_color(image):
 
-        coefficient = int(((np.count_nonzero(threshed))/(width * height))*100)
+        grayscaled_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        _, thresholded_image = cv2.threshold(
+            grayscaled_image, 10, 255, cv2.THRESH_BINARY_INV)
+
+        width, height = thresholded_image.shape
+
+        coefficient = int(
+            ((np.count_nonzero(thresholded_image))/(width * height))*100)
 
         B, G, R, _ = cv2.mean(image)
 
