@@ -102,13 +102,13 @@ class PillClass():
 class PillPeriod():
     AMOUNT = 0
 
-    def __init__(self, key=None, user_name=None, class_name=None, frequency=0, last_take=datetime.now().strftime("%m/%d/%Y, %H:%M:%S")):
+    def __init__(self, key=None, user_name=None, class_name=None, frequency=0, last_take=datetime.now().strftime("%m/%d/%Y %H:%M")):
 
         self.key = key
         self.user_name = user_name
         self.class_name = class_name
         self.frequency = timedelta(hours=frequency)
-        self.last_take = datetime.strptime(last_take, "%m/%d/%Y, %H:%M:%S")
+        self.last_take = datetime.strptime(last_take, "%m/%d/%Y %H:%M")
 
         PillPeriod.AMOUNT += 1
 
@@ -122,7 +122,7 @@ class PillPeriod():
                 "class_name": self.class_name,
                 "frequency": self.frequency,
                 "sample_amount": self.sample_amount,
-                "last_take": self.last_take.strftime("%m/%d/%Y, %H:%M:%S")
+                "last_take": self.last_take.strftime("%m/%d/%Y %H:%M")
             }
         }
 
@@ -131,18 +131,16 @@ class PillPeriod():
         self.key = key
         self.user_name = variables.user_name
         self.class_name = variables.class_name
-        self.frequency = variables.frequency
+        self.frequency = timedelta(hours=variables.frequency)
         self.sample_amount = variables.sample_amount
         if (variables.last_take != None):
             self.last_take = datetime.strptime(
-                variables.last_take, "%m/%d/%Y, %H:%M:%S")
+                variables.last_take, "%m/%d/%Y %H:%M")
 
     def if_passed(self):
         if(datetime.now() >= self.frequency + self.last_take):
-            print("Passed!")
             return True
         else:
-            print("NOT Passed!")
             return False
 
     def set_last_take(self):
@@ -521,6 +519,28 @@ class PillClassifier():
 
     def check_new_pill_cmd(self):
         return self.database.if_new_pill_cmd()
+
+    def check_last_take(self):
+        for pill_period in self.pill_periods:
+            if(pill_period.if_passed()):
+                print(f"Passed: {pill_period.key}")
+                # SENT A MESSAGE TO PATIENT
+
+    def set_last_take(self, user_key):
+
+        user_name = None
+        for user in self.users:
+            if(user.user_unique_id == user_key):
+                print(f"User Found: {user_name}")
+                user_name = user.user_name
+
+        for pill_period in self.pill_periods:
+            if(pill_period.user_name == user_name and pill_period.if_passed):
+                pill_period.set_last_take()
+                print(f"{pill_period.key} is given to the patient!")
+                self.push_content()
+                self.fetch_content()
+        print("Finished!")
 
     def debug(self, message):
         print("-----------------------DEBUG-----------------------")

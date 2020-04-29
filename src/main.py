@@ -61,6 +61,21 @@ async def routine_new_pill():
             pc.push_content()
 
 
+async def routine_last_take():
+    while True:
+        await asyncio.sleep(5)
+
+        pc.check_last_take()
+        print("Last Take Checked!")
+
+
+async def for_demo_patient_came():
+    await asyncio.sleep(10)
+    user_key = "QXDGIpt0rUPSFmJqD6dPxIk2Qog1"
+    print("Patient came!")
+    pc.set_last_take(user_key)
+
+
 if __name__ == "__main__":
 
     loop = asyncio.get_event_loop()
@@ -68,6 +83,8 @@ if __name__ == "__main__":
     try:
         asyncio.ensure_future(routine_database_update())
         asyncio.ensure_future(routine_new_pill())
+        asyncio.ensure_future(routine_last_take())
+        # asyncio.ensure_future(for_demo_patient_came())
         loop.run_forever()
     except KeyboardInterrupt:
         pass
