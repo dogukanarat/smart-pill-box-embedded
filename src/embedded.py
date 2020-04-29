@@ -7,8 +7,8 @@ from scipy.ndimage.morphology import binary_closing
 from scipy.stats import wasserstein_distance
 from skimage.feature import hog
 from skimage import data, exposure
-from datetime import datetime
 from types import SimpleNamespace
+import traceback
 import matplotlib.pyplot as plt
 import os
 import numpy as np
@@ -29,46 +29,40 @@ import time
 
 class User():
     AMOUNT = 0
-    INSTANCES = []
 
-    def __init__(self, user_name=None, user_unique_id=None, is_admin=None, pill_periods=None):
+    def __init__(self, key=None, user_name=None, user_unique_id=None, is_admin=None, pill_periods=None):
+        self.key = key
         self.user_name = user_name
         self.user_unique_id = user_unique_id
         self.is_admin = is_admin
-        self.pill_periods = pill_periods
 
         User.AMOUNT += 1
-        User.INSTANCES.append(weakref.proxy(self))
+
+    def __del__(self):
+        User.AMOUNT -= 1
 
     def get_dictionary(self):
         return {
-            "user_name": self.user_name,
-            "user_unique_id": self.user_unique_id,
-            "is_admin": self.is_admin,
-            "pill_periods": [period.get_dictionary() for period in self.pill_periods]
+            f"Users/{self.key}/": {
+                "user_name": self.user_name,
+                "user_unique_id": self.user_unique_id,
+                "is_admin": self.is_admin
+            }
         }
 
-    def set_dictionary(self, dictionary):
+    def set_dictionary(self, dictionary, key):
         variables = SimpleNamespace(**dictionary)
+        self.key = key
         self.user_name = variables.user_name
         self.user_unique_id = variables.user_unique_id
         self.is_admin = variables.is_admin
 
-        if "pill_periods" in dictionary:
-            for period in variables.pill_periods:
-                new_period = PillPeriod()
-                new_period.set_dictionary(period)
-                self.pill_periods.append(new_period)
-
-    def set_pill_period(self, pill_period):
-        self.pill_periods.append(pill_period)
-
 
 class PillClass():
     AMOUNT = 0
-    INSTANCES = []
 
-    def __init__(self, class_name=None, sample_path=None, sample_amount=None, feature_vector=None, unique_class_name=None):
+    def __init__(self, key=None, class_name=None, sample_path=None, sample_amount=None, feature_vector=None, unique_class_name=None):
+        self.key = key
         self.class_name = class_name
         self.sample_path = sample_path
         self.sample_amount = sample_amount
@@ -76,19 +70,24 @@ class PillClass():
         self.feature_vector = feature_vector
 
         PillClass.AMOUNT += 1
-        PillClass.INSTANCES.append(weakref.proxy(self))
+
+    def __del__(self):
+        PillClass.AMOUNT -= 1
 
     def get_dictionary(self):
         return {
-            "class_name": self.class_name,
-            "sample_path": self.sample_path,
-            "sample_amount": self.sample_amount,
-            "feature_vector": self.feature_vector.tolist(),
-            "unique_class_name": self.unique_class_name
+            f"Classes/{self.key}/": {
+                "class_name": self.class_name,
+                "sample_path": self.sample_path,
+                "sample_amount": self.sample_amount,
+                "feature_vector": self.feature_vector,
+                "unique_class_name": self.unique_class_name
+            }
         }
 
-    def set_dictionary(self, dictionary):
+    def set_dictionary(self, dictionary, key):
         variables = SimpleNamespace(**dictionary)
+        self.key = key
         self.class_name = variables.class_name
         self.sample_path = variables.sample_path
         self.sample_amount = variables.sample_amount
@@ -102,29 +101,41 @@ class PillClass():
 
 class PillPeriod():
     AMOUNT = 0
-    INSTANCES = []
 
-    def __init__(self, class_name=None, frequency=0, last_take=None):
+    def __init__(self, key=None, user_name=None, class_name=None, frequency=0, last_take=datetime.now().strftime("%m/%d/%Y, %H:%M:%S")):
 
+        self.key = key
+        self.user_name = user_name
         self.class_name = class_name
-        self.frequency = timedelta(seconds=frequency)
-        self.last_take = last_take
+        self.frequency = timedelta(hours=frequency)
+        self.last_take = datetime.strptime(last_take, "%m/%d/%Y, %H:%M:%S")
 
         PillPeriod.AMOUNT += 1
-        PillPeriod.INSTANCES.append(weakref.proxy(self))
+
+    def __del__(self):
+        PillPeriod.AMOUNT -= 1
 
     def get_dictionary(self):
         return {
-            "class_name": self.class_name,
-            "frequency": self.frequency,
-            "last_take": self.last_take,
+            f"Periods/{self.key}/": {
+                "user_name": self.user_name,
+                "class_name": self.class_name,
+                "frequency": self.frequency,
+                "sample_amount": self.sample_amount,
+                "last_take": self.last_take.strftime("%m/%d/%Y, %H:%M:%S")
+            }
         }
 
-    def set_dictionary(self, dictionary):
+    def set_dictionary(self, dictionary, key):
         variables = SimpleNamespace(**dictionary)
+        self.key = key
+        self.user_name = variables.user_name
         self.class_name = variables.class_name
         self.frequency = variables.frequency
-        self.last_take = variables.last_take
+        self.sample_amount = variables.sample_amount
+        if (variables.last_take != None):
+            self.last_take = datetime.strptime(
+                variables.last_take, "%m/%d/%Y, %H:%M:%S")
 
     def if_passed(self):
         if(datetime.now() >= self.frequency + self.last_take):
@@ -167,33 +178,34 @@ class Database():
                 for pill_class in self.content['Classes']:
                     pill_class_object = PillClass()
                     pill_class_object.set_dictionary(
-                        self.content["Classes"][pill_class])
+                        self.content["Classes"][pill_class], pill_class)
                     self.pill_classes.append(pill_class_object)
 
             if 'Users' in self.content:
                 for user in self.content['Users']:
                     user_object = User()
-                    user_object.set_dictionary(self.content["Users"][user])
+                    user_object.set_dictionary(
+                        self.content["Users"][user], user)
                     self.users.append(user_object)
+
+            if 'Periods' in self.content:
+                for period in self.content['Periods']:
+                    pill_period_object = PillPeriod()
+                    pill_period_object.set_dictionary(
+                        self.content["Periods"][period], period)
+                    self.pill_periods.append(pill_period_object)
 
             return True
 
         except Exception as e:
-            print(e)
+            print("Database: Error while initializing the database!")
+            traceback.print_exc()
             return False
 
     def get_database_content(self):
         try:
-            local_database_content = self.get_local_database()
+            #local_database_content = self.get_local_database()
             online_database_content = dict(self.get_online_database())
-
-            '''
-            if local_database_content["UpdateTime"] == online_database_content["UpdateTime"]:
-                self.content = localdatabasecontent
-                return True
-            else:
-                return False
-            '''
 
             self.content = online_database_content
 
@@ -230,57 +242,85 @@ class Database():
 
         self.pill_classes.append(pill_class_object)
 
-        results = self.firebase_db.child("Classes").push(
-            pill_class_object.get_dictionary())
+        data = pill_class_object.get_dictionary()
+        for key in data:
+            ref_key = key.split("/")[1]
+            results = self.firebase_db.child(
+                f"{ref_key}").set(data[key])
 
         return True
 
-    def GenerateUpdateTime(self):
-        now = datetime.now()
-        currenttime = now.strftime("%c")
-
-        return currenttime
-
-    def SetDatabaseContent(self):
+    def set_database_content(self):
         try:
-            self.content["UpdateTime"] = self.GenerateUpdateTime()
-            self.SetLocalDatabase()
-            self.SetOnlineDatabase()
+
+            status_parameters_data = {
+                "StatusParameters": {
+                    "UserAmount": User.AMOUNT,
+                    "ClassAmount": PillClass.AMOUNT,
+                    "DatabaseUpdated": False,
+                    "IsErrorOccured": False,
+                    "NewPillCmd": False,
+                    "PowerMode": "Batter Mode"
+                }
+            }
+
+            self.set_online_database(status_parameters_data)
+
+            for pill_period in self.pill_periods:
+                pill_period_data = pill_period.get_dictionary()
+                self.set_online_database(pill_period_data)
+
+            for pill_class in self.pill_classes:
+                pill_class_data = pill_class.get_dictionary()
+                self.set_online_database(pill_class_data)
+
             print("Database: Database is saved!")
             return True
         except:
+            traceback.print_exc()
             print("Database: Error occured while saving database!")
             return False
 
-    def SetOnlineDatabase(self):
+    def set_online_database(self, content):
         try:
-            self.firebase.set(self.content)
+            self.firebase_db.update(content)
             return True
         except:
+            traceback.print_exc()
             print("Database: Error occured while updating online database!")
 
-    def SetLocalDatabase(self):
+    def fetch_database(self):
         try:
-            json.dump(self.content, codecs.open(self.localdatabasefile, 'w', encoding='utf-8'),
-                      separators=(',', ':'), sort_keys=True, indent=4)
+            self.content.clear()
+            self.status_parameters.clear()
+            self.users.clear()
+            self.pill_classes.clear()
+            self.pill_periods.clear()
+
+            self.initialize()
+
+            self.firebase_db.child(
+                "StatusParameters").update({"DatabaseUpdated": False})
+
             return True
+
         except:
-            print("Database: Error occured while updating local database!")
+            traceback.print_exc()
+            print("Database: Error occured while fetching content!")
+            return False
 
-    def GetClasses(self):
-        pass
+    def if_updated(self):
+        return self.firebase_db.child("StatusParameters/DatabaseUpdated").get().val()
 
-    def GetUsers(self):
-        pass
-
-    def SetUsers(self):
-        pass
-
-    def GetStatusParameters(self):
-        pass
-
-    def SetStatusParameters(self):
-        pass
+    def if_new_pill_cmd(self):
+        result = self.firebase_db.child(
+            "StatusParameters/NewPillCmd").get().val()
+        if(result):
+            self.firebase_db.child("StatusParameters").update(
+                {"NewPillCmd": False})
+            return True
+        else:
+            return False
 
     def debug(self, message):
         print("-----------------------DEBUG-----------------------")
@@ -298,9 +338,14 @@ class PillClassifier():
         self.new_shot_file = None
         self.samples_path = None
         self.database = None
+
+        self.status_parameters = []
         self.users = []
         self.pill_classes = []
+        self.pill_periods = []
+
         self.temp_object_list = []
+
         self.total_sample_amount = 0
         self.total_pill_class_amount = 0
 
@@ -309,8 +354,10 @@ class PillClassifier():
             self.database = Database(
                 self.local_database_file, self.online_database_config_file, self.objects_path)
 
+            self.status_parameters = self.database.status_parameters
             self.users = self.database.users
             self.pill_classes = self.database.pill_classes
+            self.pill_periods = self.database.pill_periods
 
             return True
 
@@ -339,7 +386,7 @@ class PillClassifier():
     def post_processing(self):
         ''' Temprorary '''
         self.temp_object_list = [
-            self.temp_object_list[3], self.temp_object_list[6]]
+            self.temp_object_list[4], self.temp_object_list[5]]
         ''' Temprorary '''
 
         feature_vector = self.backend.is_all_same(self.temp_object_list)
@@ -374,23 +421,24 @@ class PillClassifier():
 
     def set_new_pill_class(self, feature_vector):
 
-        new_pill_class_name = f"SampleName{chr(65+len(self.pill_classes))}"
-        new_pill_class_feature_vector = feature_vector
-        new_pill_class_sample_amount = len(self.temp_object_list)
-        new_pill_class_unique_id = self.generate_unique_id()
-        new_pill_class_sample_path = self.store_sample_image(
-            self.temp_object_list[0], new_pill_class_unique_id)
+        unique_id = self.generate_unique_id()
 
-        new_pill_class = PillClass(
-            class_name=new_pill_class_name,
-            sample_path=new_pill_class_sample_path,
-            sample_amount=new_pill_class_sample_amount,
-            feature_vector=new_pill_class_feature_vector,
-            unique_class_name=new_pill_class_unique_id
-        )
+        new_dictionary = {
+            "class_name": f"SampleName{chr(65+len(self.pill_classes))}",
+            "feature_vector": feature_vector.tolist(),
+            "sample_amount": len(self.temp_object_list),
+            "unique_class_name": unique_id,
+            "sample_path": self.store_sample_image(self.temp_object_list[0], unique_id)
+        }
+
+        new_pill_class_key = self.database.firebase_db.child(
+            "Classes").generate_key()
+
+        new_pill_class = PillClass()
+        new_pill_class.set_dictionary(new_dictionary, new_pill_class_key)
 
         self.total_pill_class_amount += 1
-        self.total_sample_amount += new_pill_class_sample_amount
+        self.total_sample_amount += len(self.temp_object_list)
         self.pill_classes.append(new_pill_class)
 
         self.database.set_new_pill_class(new_pill_class)
@@ -437,6 +485,43 @@ class PillClassifier():
         print("Classifier: The feature vector could NOT be found in the list!")
         return False
 
+    def push_content(self):
+        try:
+            self.database.pill_classes = self.pill_classes
+            self.database.pill_periods = self.pill_periods
+
+            self.database.set_database_content()
+
+            return True
+        except:
+            return False
+
+    def fetch_content(self):
+        try:
+            self.status_parameters.clear()
+            self.users.clear()
+            self.pill_classes.clear()
+            self.pill_periods.clear()
+
+            self.database.fetch_database()
+            self.status_parameters = self.database.status_parameters
+            self.users = self.database.users
+            self.pill_classes = self.database.pill_classes
+            self.pill_periods = self.database.pill_periods
+
+            print("Classifier: Fetching complete!")
+            return True
+        except:
+            traceback.print_exc()
+            print("Classifier: Error occured while fetching content!")
+            return False
+
+    def check_database(self):
+        return self.database.if_updated()
+
+    def check_new_pill_cmd(self):
+        return self.database.if_new_pill_cmd()
+
     def debug(self, message):
         print("-----------------------DEBUG-----------------------")
         print(message)
@@ -463,12 +548,6 @@ def embedded():
 
     pc.initialize()
 
-    print(f'Number of class: {len(pc.pill_classes)}')
-    print(f'Number of user: {len(pc.users)}')
-
-    pc.take_shot()
-    pc.post_processing()
-
 
 if __name__ == "__main__":
-    embedded()
+    pass

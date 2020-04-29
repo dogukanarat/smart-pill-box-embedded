@@ -1,0 +1,12 @@
+{
+    "Classes/-M6531zRNbRLrMMbfOQk/": {
+        "class_name": "SampleNameC",
+        "sample_path": "d:\\Github\\smart-pill-box-embedded\\src/resources/samples/af557751-d09e-4672-a72e-d642e0ad9847.png",
+        "sample_amount": 2,
+        "feature_vector": [
+            [929, 224, 567, 2019, 6],
+            [921, 248, 571, 1976, 7]
+        ],
+        "unique_class_name": "af557751-d09e-4672-a72e-d642e0ad9847"
+    }
+}
