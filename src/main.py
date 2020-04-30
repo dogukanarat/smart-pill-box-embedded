@@ -84,7 +84,7 @@ if __name__ == "__main__":
         asyncio.ensure_future(routine_database_update())
         asyncio.ensure_future(routine_new_pill())
         asyncio.ensure_future(routine_last_take())
-        # asyncio.ensure_future(for_demo_patient_came())
+        asyncio.ensure_future(for_demo_patient_came())
         loop.run_forever()
     except KeyboardInterrupt:
         pass

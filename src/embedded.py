@@ -98,17 +98,21 @@ class PillClass():
         self.sample_amount += sample_amount
         return None
 
+    def set_take(self, sample_amount):
+        self.sample_amount -= sample_amount
+
 
 class PillPeriod():
     AMOUNT = 0
 
-    def __init__(self, key=None, user_name=None, class_name=None, frequency=0, last_take=datetime.now().strftime("%m/%d/%Y %H:%M")):
+    def __init__(self, key=None, message=False, user_name=None, class_name=None, frequency=0, last_take=datetime.now().strftime("%m/%d/%Y %H:%M")):
 
         self.key = key
         self.user_name = user_name
         self.class_name = class_name
         self.frequency = timedelta(hours=frequency)
         self.last_take = datetime.strptime(last_take, "%m/%d/%Y %H:%M")
+        self.message = message
 
         PillPeriod.AMOUNT += 1
 
@@ -120,9 +124,10 @@ class PillPeriod():
             f"Periods/{self.key}/": {
                 "user_name": self.user_name,
                 "class_name": self.class_name,
-                "frequency": self.frequency,
+                "frequency": self.frequency.seconds/3600,
                 "sample_amount": self.sample_amount,
-                "last_take": self.last_take.strftime("%m/%d/%Y %H:%M")
+                "last_take": self.last_take.strftime("%m/%d/%Y %H:%M"),
+                "message": self.message
             }
         }
 
@@ -133,6 +138,7 @@ class PillPeriod():
         self.class_name = variables.class_name
         self.frequency = timedelta(hours=variables.frequency)
         self.sample_amount = variables.sample_amount
+        self.message = variables.message
         if (variables.last_take != None):
             self.last_take = datetime.strptime(
                 variables.last_take, "%m/%d/%Y %H:%M")
@@ -144,7 +150,12 @@ class PillPeriod():
             return False
 
     def set_last_take(self):
+        self.message = False
         self.last_take = datetime.now()
+        return None
+
+    def set_message(self):
+        self.message = True
         return None
 
 
@@ -256,7 +267,7 @@ class Database():
                     "UserAmount": User.AMOUNT,
                     "ClassAmount": PillClass.AMOUNT,
                     "DatabaseUpdated": False,
-                    "IsErrorOccured": False,
+                    "IsErrorOccured": self.status_parameters["IsErrorOccured"],
                     "NewPillCmd": False,
                     "PowerMode": "Batter Mode"
                 }
@@ -485,6 +496,7 @@ class PillClassifier():
 
     def push_content(self):
         try:
+            self.database.status_parameters = self.status_parameters
             self.database.pill_classes = self.pill_classes
             self.database.pill_periods = self.pill_periods
 
@@ -525,6 +537,10 @@ class PillClassifier():
             if(pill_period.if_passed()):
                 print(f"Passed: {pill_period.key}")
                 # SENT A MESSAGE TO PATIENT
+                if(not pill_period.message):
+                    pill_period.set_message()
+                    self.push_content()
+                    self.fetch_content()
 
     def set_last_take(self, user_key):
 
@@ -535,11 +551,21 @@ class PillClassifier():
                 user_name = user.user_name
 
         for pill_period in self.pill_periods:
-            if(pill_period.user_name == user_name and pill_period.if_passed):
+            if(pill_period.user_name == user_name and pill_period.if_passed()):
                 pill_period.set_last_take()
-                print(f"{pill_period.key} is given to the patient!")
+
+                for pill_class in self.pill_classes:
+                    if pill_class.class_name == pill_period.class_name:
+                        pill_class.set_take(pill_period.sample_amount)
+
+                        if pill_class.sample_amount <= 4:
+                            print("AZ KALDI!")
+                            self.status_parameters["IsErrorOccured"] = True
+
+                print(f"{pill_period.class_name} is given to the patient!")
                 self.push_content()
                 self.fetch_content()
+
         print("Finished!")
 
     def debug(self, message):
@@ -565,8 +591,6 @@ def embedded():
     pc.online_database_config_file = f'{resources_path}/firebase-config.json'
     pc.samples_path = f'{resources_path}/samples'
     pc.new_shot_file = f'{resources_path}/real_image.jpg'
-
-    pc.initialize()
 
 
 if __name__ == "__main__":
