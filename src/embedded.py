@@ -105,13 +105,13 @@ class PillClass():
 class PillPeriod():
     AMOUNT = 0
 
-    def __init__(self, key=None, message=False, user_name=None, class_name=None, frequency=0, last_take=datetime.now().strftime("%m/%d/%Y %H:%M")):
+    def __init__(self, key=None, message=False, user_name=None, class_name=None, frequency=0, last_take=datetime.now().strftime(f"%d/%m/%Y %H:%M")):
 
         self.key = key
         self.user_name = user_name
         self.class_name = class_name
         self.frequency = timedelta(hours=frequency)
-        self.last_take = datetime.strptime(last_take, "%m/%d/%Y %H:%M")
+        self.last_take = datetime.strptime(last_take, f"%d/%m/%Y %H:%M")
         self.message = message
 
         PillPeriod.AMOUNT += 1
@@ -126,7 +126,7 @@ class PillPeriod():
                 "class_name": self.class_name,
                 "frequency": self.frequency.seconds/3600,
                 "sample_amount": self.sample_amount,
-                "last_take": self.last_take.strftime("%m/%d/%Y %H:%M"),
+                "last_take": self.last_take.strftime(f"%d/%m/%Y %H:%M"),
                 "message": self.message
             }
         }
@@ -141,7 +141,7 @@ class PillPeriod():
         self.message = variables.message
         if (variables.last_take != None):
             self.last_take = datetime.strptime(
-                variables.last_take, "%m/%d/%Y %H:%M")
+                variables.last_take, f"%d/%m/%Y %H:%M")
 
     def if_passed(self):
         if(datetime.now() >= self.frequency + self.last_take):
@@ -559,7 +559,7 @@ class PillClassifier():
                         pill_class.set_take(pill_period.sample_amount)
 
                         if pill_class.sample_amount <= 4:
-                            print("AZ KALDI!")
+                            print("The pill class is about to run out!")
                             self.status_parameters["IsErrorOccured"] = True
 
                 print(f"{pill_period.class_name} is given to the patient!")
